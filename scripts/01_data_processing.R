@@ -1,5 +1,5 @@
 # Load in packages
-pacman::p_load(tidyverse, sf, tmap, terra, pipr)
+pacman::p_load(tidyverse, sf, tmap, terra)
 pacman::p_load_gh('worldbank/pipr')
 
 # read in arcGIS provided data layers for world map with 2 digit ISO codes
@@ -30,7 +30,7 @@ tm_shape(esri_countries) +
 plant_alpha <- rast('data/Sabatini et al. 2022 Plant alpha diversity/3506_70_w3_tile_joint_sr1000.tif')
 plant_alpha <- project(plant_alpha, crs(esri_countries))
 plant_alpha_mean <- extract(plant_alpha, vect(esri_countries), fun = mean, na.rm = T, touches = T)
-esri_countries$plant_alpha_SR <-  plant_alpha_mean$X3506_70_w3_tile_joint_sr1000
+esri_countries$plant_alpha_SR <-  plant_alpha_mean[['3506_70_w3_tile_joint_sr1000']]
 tm_shape(esri_countries) + 
   tm_fill(col = 'plant_alpha_SR', 
           style = 'cont')
@@ -65,11 +65,13 @@ bii_rich <- terra::aggregate(bii_rich, fact = 100, na.rm = T, fun = mean)
 bii_abund <- project(bii_abund, crs(esri_countries))
 bii_rich <- project(bii_rich, crs(esri_countries))
 
-bii_abund_mean <- extract(bii_abund, vect(esri_countries), fun = mean, na.rm = T, touches = T)
+bii_abund_mean <- terra::extract(bii_abund, vect(esri_countries), fun = mean, na.rm = T, touches = T)
+bii_abund_mean <- janitor::clean_names(bii_abund_mean)
 bii_rich_mean <- extract(bii_rich, vect(esri_countries), fun = mean, na.rm = T, touches = T)
+bii_rich_mean <- janitor::clean_names(bii_rich_mean)
 
-esri_countries$bii_abun <-  bii_abund_mean$final.abund.bii.isl.main
-esri_countries$bii_rich <-  bii_rich_mean$final.rich.bii.isl.main
+esri_countries$bii_abun <-  bii_abund_mean$final_abund_bii_isl_main
+esri_countries$bii_rich <-  bii_rich_mean$final_rich_bii_isl_main
 
 tm_shape(esri_countries) + 
   tm_fill(col = 'bii_abun', 
@@ -112,9 +114,10 @@ wetland_loss_2020 <- project(wetland_loss_2020, crs(esri_countries))
 
 # make extractions
 wetland_loss_2020_mean <- extract(wetland_loss_2020, vect(esri_countries), fun = mean, na.rm = T, touches = T)
+wetland_loss_2020_mean <- janitor::clean_names(wetland_loss_2020_mean)
 
 # add to country dataset
-esri_countries$wetland_loss_2020_mean <-  wetland_loss_2020_mean$wetland_area_Time.2020
+esri_countries$wetland_loss_2020_mean <-  wetland_loss_2020_mean$wetland_area_time_2020
 
 tm_shape(esri_countries) + 
   tm_fill(col = 'wetland_loss_2020_mean', 
@@ -166,8 +169,7 @@ pa_summarised <- pa_data %>%
   
 ###### WORLD BANK POVERTY AND INEQUALITY DATA API ----
 
-
-#### PIP poverty and inequality data ----
+#### PIP poverty and inequality data at international poverty line definitions ----
 wb_data <- pipr::get_stats()
 wb_countries <- pipr::get_countries()
 
@@ -183,7 +185,8 @@ wb_poverty <- wb_data %>%
   select(country_name, country_code, year, 
          headcount, poverty_gap, gini) %>% 
   # take most recent year
-  group_by(country_code) %>% 
+  group_by(country_name, country_code) %>% 
+  
   filter(year == year[which.max(year)])
 
 #### WB multidimensional poverty index ----
@@ -194,6 +197,20 @@ mdph <- readxl::read_xlsx('data/MPM-Data-SM23.xlsx', skip = 2) %>%
          country_code = Code, 
          country_name = Economy)
 
+#### National poverty line ----
+
+# process to mean value post-2000
+npl <- read_csv("data/National Poverty Line Data/API_SI.POV.NAHC_DS2_en_csv_v2_3401573.csv", skip = 3) %>% 
+  select(-`...69`) %>% 
+  pivot_longer(cols = `1960`:`2023`) %>% 
+  filter(!is.na(value)) %>% 
+  janitor::clean_names() %>% 
+  group_by(country_name, country_code) %>% 
+  mutate(name = as.numeric(name)) %>% 
+  filter(name > 2000, value != 0) %>% 
+  summarise(mean_npl = mean(value)) %>% 
+  ungroup()
+
 #### join together world bank data ----
 
 # use full join to observe missing data in either dataset
@@ -201,6 +218,9 @@ wb_full <- full_join(wb_poverty, mdph)
 
 wb_full <- wb_full %>% filter(!is.na(country_name))
 
+# convert to percentages
+wb_full$headcount   <- wb_full$headcount * 100
+wb_full$poverty_gap <- wb_full$poverty_gap * 100
 
 #### COMBINE BIODIVERSITY DATA WITH PIP PIP ----
 
