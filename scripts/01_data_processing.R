@@ -171,7 +171,6 @@ pa_summarised <- pa_data %>%
 
 #### PIP poverty and inequality data at international poverty line definitions ----
 wb_data <- pipr::get_stats()
-wb_countries <- pipr::get_countries()
 
 # take data
 names(wb_data)
@@ -186,8 +185,11 @@ wb_poverty <- wb_data %>%
          headcount, poverty_gap, gini) %>% 
   # take most recent year
   group_by(country_name, country_code) %>% 
-  
-  filter(year == year[which.max(year)])
+  filter(year > 2000) %>% 
+  summarise(headcount   = mean(headcount, na.rm = T), 
+            poverty_gap = mean(poverty_gap  , na.rm = T), 
+            gini        = mean(gini, na.rm = T)) %>% 
+  ungroup()
 
 #### WB multidimensional poverty index ----
 
@@ -214,13 +216,15 @@ npl <- read_csv("data/National Poverty Line Data/API_SI.POV.NAHC_DS2_en_csv_v2_3
 #### join together world bank data ----
 
 # use full join to observe missing data in either dataset
-wb_full <- full_join(wb_poverty, mdph)
+wb_full <- full_join(full_join(wb_poverty, mdph), npl)
 
 wb_full <- wb_full %>% filter(!is.na(country_name))
 
 # convert to percentages
 wb_full$headcount   <- wb_full$headcount * 100
 wb_full$poverty_gap <- wb_full$poverty_gap * 100
+wb_full$gini   <- wb_full$gini * 100
+
 
 #### COMBINE BIODIVERSITY DATA WITH PIP PIP ----
 
@@ -261,7 +265,7 @@ esri_countries_nonSF <- left_join(esri_countries_nonSF, pa_summarised %>% select
 #### PIP inequality
 #### WB multidimensional poverty headcount
 esri_countries_nonSF <- left_join(esri_countries_nonSF, 
-                                wb_full %>% ungroup() %>% select(-country_name, -year), 
+                                wb_full %>% ungroup() %>% select(-country_name), 
                                 by = c('alpha-3' = 'country_code'))
 
 final_country_data <- st_as_sf(left_join(esri_countries_nonSF, esri_countries %>% select(ISO), by = c('ISO' = 'ISO')))
@@ -273,16 +277,16 @@ final_country_data <- final_country_data %>%
   select(`alpha-3`, COUNTRY, region, 
          IUCN_combined_SR, plant_alpha_SR, mammal_gd, bii_abun, bii_rich, 
          wetland_loss_2020_mean, natural_modified_habitat, change_forest_area, deforestation_area, 
-         pa_coverage, headcount, poverty_gap, gini, multidimensional_poverty_headcount, geometry)
+         pa_coverage, headcount, poverty_gap, gini, multidimensional_poverty_headcount, mean_npl, geometry)
 
 # check plots still make sense after manipulations
 tm_shape(final_country_data) + 
-  tm_fill(col = 'plant_alpha_SR', 
+  tm_fill(col = 'mean_npl', 
           style = 'cont')
 
 
 dir.create('data/country_poverty_biodiversity')
-sf::write_sf(st_as_sf(final_country_data), 'data/country_poverty_biodiversity/country_poverty_biodiversity.shp')
-sf::write_sf(st_as_sf(final_country_data), 'data/country_poverty_biodiversity/country_poverty_biodiversity_names_3.csv')
+sf::write_sf(st_as_sf(final_country_data), 'data/country_poverty_biodiversity/country_poverty_biodiversity.shp', overwrite=T)
+write_csv(st_as_sf(final_country_data), 'data/country_poverty_biodiversity/country_poverty_biodiversity_names_3.csv')
 
 
