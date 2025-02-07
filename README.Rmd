@@ -8,11 +8,11 @@ date: "`r Sys.Date()`"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Info
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This repository contains the scripts associated with the manuscript of Waldock et al. (in prep) "*Global coupling of poverty to biodiversity induces a conservation paradox".*
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Session information
 
 ```{r}
 
@@ -49,11 +49,4 @@ p_load(
   )
 
 sessionInfo()
-
 ```
-
-
-```{r pressure, echo=FALSE}
-
-```
-
