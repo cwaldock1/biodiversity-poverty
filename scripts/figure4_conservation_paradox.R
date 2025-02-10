@@ -13,7 +13,7 @@ source('scripts/00_mcluster_helper.R')
 
 # Load in required packages
 
-pacman::p_load(tidyverse, dplyr, tidyr, sf, tmap, terra, ggh4x, mclust, GGally, rworldxtra, broom, tidyr, summarytools, missForest)
+pacman::p_load(tidyverse, dplyr, tidyr, sf, tmap, terra, ggh4x, mclust, GGally, rworldxtra, broom, summarytools, missForest)
 
 # Load in country outlines
 

@@ -8,7 +8,18 @@ pacman::p_load(tidyverse, rnaturalearth, rnaturalearthdata, ggrepel, devtools, g
 
 # Load in dataset
 
+# compiled from Wiki medeavil history page
+
 civ <- readxl::read_xlsx("data/global civilisations/civilizations and crops_final.xlsx", sheet = 1)
+
+# compiled from wiki list of empires page
+
+empires <- readxl::read_xlsx("data/global civilisations/empires.xlsx", sheet = 1) %>% 
+  filter(!is.na(coordinates))
+
+# bind together
+
+civ <- bind_rows(civ, empires)
 
 # Process and clean data
 
@@ -17,8 +28,8 @@ cleaned <- civ %>%
                                     !is.na(first_year_AD) ~ 2000-first_year_AD),
          last_year_b2k  = case_when(!is.na(last_year_BC) ~ last_year_BC+2000, 
                                     !is.na(last_year_AD) ~ 2000-last_year_AD), 
-         y = as.numeric(str_split(coordinates,',', simplify = T)[,1]),
-         x = as.numeric(str_split(coordinates,',', simplify = T)[,2])) %>% 
+         y = as.numeric(gsub(' ', '', str_split(coordinates,',', simplify = T)[,1])),
+         x = as.numeric(gsub(' ', '', str_split(coordinates,',', simplify = T)[,2]))) %>% 
   janitor::clean_names()
 
 # Convert to a spatial object
@@ -75,7 +86,7 @@ civ_world_map <- ggplot(world_fixed) +
   geom_sf(data = world_fixed, col = 'gray80', fill = 'gray70', inherit.aes = TRUE) + 
   geom_sf(data = civ_sf %>% arrange(desc(first_year_b2k)), aes(fill = first_year_b2k, size = first_year_b2k-last_year_b2k), 
           pch = 21) + 
-  geom_sf_text_repel(data = civ_sf, aes(label = name), force = 0.1, seed = 3, size = 2.5, max.overlaps=200) + 
+  geom_sf_text_repel(data = civ_sf %>% filter(plot == 1), aes(label = name), force = 0.1, seed = 3, size = 2.5, max.overlaps=200) + 
   theme_bw() + 
   theme(panel.border = element_blank()) + 
   scale_fill_viridis_c(option = 'C') + 
@@ -108,7 +119,7 @@ civ_timeline <- ggplot(data = civ_sf %>%
   scale_x_reverse() +
  # scale_colour_manual(values = viridis::inferno(4, begin = 0, end = 0.8)[1:4]) +
   scale_colour_manual(values = c('#932667FF', '#DD513AFF', '#1AE4B6FF', '#000004FF'), 
-                      breaks = c('Europe', 'Asia', 'Americas', 'Africa')) +
+                      breaks = c('Europe', 'Asia', 'Americas', 'Africa', 'Polynesia')) +
   theme_bw() + 
   theme(panel.grid = element_blank(), 
         axis.line.y = element_blank(), 
@@ -195,14 +206,114 @@ world_gdp_plot_v2 <-
   theme(aspect.ratio = 1, 
         panel.grid = element_blank(), 
         legend.position = 'bottom') + 
-  labs(colour = 'latitude') 
+  labs(colour = 'latitude') + 
+  geom_segment(aes(x = 1492, xend = 1492, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Colombus "discovers americas"
+  geom_segment(aes(x = 1520, xend = 1520, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # First sugar plantation in brazil
+  geom_segment(aes(x = 1530, xend = 1530, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # First sugar plantation in brazil
+  geom_segment(aes(x = 1530, xend = 1530, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Slave trade to brazil and 
+  geom_segment(aes(x = 1600, xend = 1600, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Formation of East India Company
+  geom_segment(aes(x = 1660, xend = 1660, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Formation of Royal African Company
+  geom_segment(aes(x = 1730, xend = 1730, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Cotton first imported to Britain
+  geom_segment(aes(x = 1803, xend = 1803, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Haitian slave revolution victory
+  geom_segment(aes(x = 1864, xend = 1864, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # Berlin conference partitions africa
+  geom_segment(aes(x = 1858, xend = 1858, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1) + # British Raj in India
+  geom_segment(aes(x = 1960, xend = 1960, y = 3, yend = 0), arrow = arrow(length = unit(1, "cm")), size = 1)   # Independence and decolonisation 
+
 
 png(filename = 'figures/figure1/global_gdp_comparison_and_timeline.png', res = 300, width = 2500, height = 1500)
 civ_timeline + theme(aspect.ratio = 0.5, 
                      legend.position = 'none') + world_gdp_plot_v2 + theme(aspect.ratio = 0.5)
 dev.off()
 
+png(filename = 'figures/figure1/global_event_timeline.png', res = 300, width = 4000, height = 3000)
+ggplot() + 
+  geom_linerange(aes(xmin = 1000, xmax = 2000, y = 0)) + 
+  geom_segment(aes(x = 1492, xend = 1492, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Colombus "discovers americas"
+  geom_text(aes(x = 1492, y = -0.22), label = 'Arrival of Columbus', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1520, xend = 1520, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Slave trade to brazil and 
+  geom_text(aes(x = 1520, y = 0.22), label = 'Slave trade initiated', hjust = 0, angle = 45) + 
+  geom_segment(aes(x = 1530, xend = 1530, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # First sugar plantation in brazil
+  geom_text(aes(x = 1530, y = -0.22), label = 'First sugar plantation in brazil', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1660, xend = 1660, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Formation of Royal African Company
+  geom_text(aes(x = 1660, y = -0.22), label = 'Formation of Royal African Company', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1730, xend = 1730, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Cotton first imported to Britain
+  geom_text(aes(x = 1730, y = 0.22), label = 'Cotton first imported to Britain', hjust = 0, angle = 45) + 
+  geom_segment(aes(x = 1757, xend = 1757, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Formation of East India Company
+  geom_text(aes(x = 1757, y = 0.22), label = 'Dominance of East India Company in India', hjust = 0, angle = 45) + 
+  geom_segment(aes(x = 1803, xend = 1803, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Haitian slave revolution victory
+  geom_text(aes(x = 1803, y = -0.22), label = 'St. Domingue slave revolution', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1864, xend = 1864, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Berlin conference partitions africa
+  geom_text(aes(x = 1864, y = 0.22), label = 'Berlin conference partitions Africa', hjust = 0, angle = 45) + 
+  geom_segment(aes(x = 1858, xend = 1858, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # British Raj in India
+  geom_text(aes(x = 1858, y = -0.22), label = 'British Raj rule in India', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1902, xend = 1902, y = -0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # British Raj in India
+  geom_text(aes(x = 1902, y = -0.22), label = '90% Africa colonised', hjust = 1, angle = 45) + 
+  geom_segment(aes(x = 1960, xend = 1960, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + 
+  geom_text(aes(x = 1960, y = 0.22), label = 'Independence \n of former colonies', hjust = 0, angle = 45) + 
+  theme_void() + 
+  ylim(c(-1, 1)) + 
+  xlim(c(1000, 2100)) 
+dev.off()
 
-
+png(filename = 'figures/figure1/global_event_timeline.png', res = 300, width = 3000, height = 2000, bg = 'transparent')
+ggplot() + 
+  geom_linerange(aes(xmin = 1000, xmax = 2000, y = 0)) + 
+  geom_segment(aes(x = 1492, xend = 1492, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Colombus "discovers americas"
+  geom_text(aes(x = 1492, y = 0.25), label = '1', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1492, y = 0.22), label = 'Arrival of Columbus', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1520, xend = 1520, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Slave trade to brazil and 
+  geom_text(aes(x = 1520, y = 0.25), label = '2', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1520, y = 0.22), label = 'Slave trade initiated', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1530, xend = 1530, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # First sugar plantation in brazil
+  geom_text(aes(x = 1535, y = 0.25), label = '3', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1535, y = 0.15), label = 'First sugar plantation in brazil', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1660, xend = 1660, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Formation of Royal African Company
+  geom_text(aes(x = 1660, y = 0.25), label = '4', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1660, y = 0.22), label = 'Formation of Royal African Company', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1730, xend = 1730, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Cotton first imported to Britain
+  geom_text(aes(x = 1730, y = 0.25), label = '5', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1730, y = 0.22), label = 'Cotton first imported to Britain', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1757, xend = 1757, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Formation of East India Company
+  geom_text(aes(x = 1757, y = 0.25), label = '6', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1757, y = 0.22), label = 'Dominance of East India Company in India', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1803, xend = 1803, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # Haitian slave revolution victory
+  geom_text(aes(x = 1803, y = 0.25), label = '7', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1803, y = 0.22), label = 'St. Domingue slave revolution', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1864, xend = 1864, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) +  # Berlin conference partitions africa
+  geom_text(aes(x = 1868, y = 0.25), label = '9', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1868, y = 0.22), label = 'Berlin conference partitions Africa', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1858, xend = 1858, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # British Raj in India
+  geom_text(aes(x = 1850, y = 0.25), label = '8', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1850, y = 0.22), label = 'British Raj rule in India', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1902, xend = 1902, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + # British Raj in India
+  geom_text(aes(x = 1902, y = 0.25), label = '10', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1902, y = 0.22), label = '90% Africa colonised', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1960, xend = 1960, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + 
+  geom_text(aes(x = 1955, y = 0.25), label = '11', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1960, y = 0.22), label = 'Independence \n of former colonies', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1980, xend = 1980, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + 
+  geom_text(aes(x = 1980, y = -0.05), label = '12', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1960, y = 0.22), label = 'Structural adjustment plans in sub-saharan africa and latin america', hjust = 0, angle = 45, size = 10) + 
+  
+  geom_segment(aes(x = 1995, xend = 1995, y = 0.2, yend = 0), arrow = arrow(length = unit(0.5, "cm"), type = "closed"), size = 1) + 
+  geom_text(aes(x = 2000, y = 0.25), label = '13', angle = 0, size = 5) + 
+  #geom_text(aes(x = 1960, y = 0.22), label = 'Formation of World Trade Organisation', hjust = 0, angle = 45, size = 10) + 
+  
+  theme_void() + 
+  ylim(c(-1, 1)) + 
+  xlim(c(1000, 2100)) + 
+  theme(panel.background = element_blank())
+dev.off()
 
 
