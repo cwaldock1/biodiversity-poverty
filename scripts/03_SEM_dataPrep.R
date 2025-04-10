@@ -1,7 +1,7 @@
 #### Script to process variables as predictors of colonisation and poverty
 # devtools::install_github("jslefche/piecewiseSEM@devel")
 pacman::p_load(tidyverse, dplyr, tidyr, sf, tmap, terra, ggh4x, mclust, GGally, rworldxtra, broom, tidyr, 
-               foreign, wbstats, janitor, htmlwidgets, webshot, piecewiseSEM, semEff)
+               foreign, wbstats, janitor, htmlwidgets, webshot, piecewiseSEM, semEff, lavaan, psych, tidySEM)
 
 
 
@@ -31,10 +31,9 @@ ertan_data2 <- ertan_data %>%
 
 #### Acemoglu et al. 2001 ----
 
-# available in image so can type up manually
+# available in image so can type up manually -> however only 60 countries
 
 #### World bank data portal ----
-
 
 wb_search('poverty headcount')
 #CC.PER.RNK = control of corruption percentile range
@@ -70,6 +69,8 @@ wb_clean <- wb_download %>%
   #mutate(across(debt, ~ replace(., is.na(.), 0))) %>% 
   ungroup()
 
+write_csv(wb_clean, 'data/wb_clean_20250410.csv')
+
 #### read in poverty and biodiversity data----
 
 cpb <- read_sf('data/country_poverty_biodiversity/country_poverty_biodiversity.shp')
@@ -81,7 +82,12 @@ cpb_processed <- cpb %>%
   select(`alpha-3`, COUNTRY, IUCN_combined_SR, plant_alpha_SR, mammal_gd, pa_coverage) %>% 
   st_drop_geometry() %>% 
   clean_names
- 
+
+#### read in mineral resources data ----
+
+minerals <- read_csv('data/mrds-trim/clean_minerals.csv')
+
+
 #### combine data sources ----
 
 social_data <- left_join(wb_clean, ertan_data2 %>% select(-country), by = c('iso3c' = 'wbcode')) %>% 
@@ -89,10 +95,15 @@ social_data <- left_join(wb_clean, ertan_data2 %>% select(-country), by = c('iso
   
 all_data <- left_join(social_data, cpb_processed %>% select(-country), by = c('iso3c' = 'alpha_3'))
 
+all_data <- left_join(all_data, minerals %>% 
+            filter(!country %in% c('Canarias', 'Azores', 'Madeira')) %>% # remove one to many matches to keep only mainland country
+            select(-country),
+          by = c('iso2c' = 'iso')) 
+
 # standardize data
 all_data <- all_data %>% 
   #mutate(across(agriculture:pa_coverage, scales::rescale)) %>% 
-  # clean settle colonies to be non-colonised
+  # clean settler colonies and contentious and shortly influenced to be non-colonised
   mutate(col = case_when(country %in% c('Australia', 'New Zealand', 
                                         'United States', 'South Africa', 
                                         'Canada', 'Israel', 'Singapore', 
@@ -103,17 +114,19 @@ all_data <- all_data %>%
                          T ~ col)) %>% 
   # make debt binary
   mutate(debt = case_when(is.na(debt) ~ 0, T ~ 1), 
-         log_resource_rent = log(resource_rent))
+         log_resource_rent = log(resource_rent)) %>% 
+  rename(mineral_locations = point_count, 
+         mineral_locations_log10 = point_count_log10)
 
-#### Build structural equation model in R ----
+#### Build data table that will be used as input and explore correltions ----
 
 head(all_data)
 
 names(all_data)
 
-pacman::p_load(lavaan, psych, tidySEM)
+pacman::p_load()
 
-# check distribution of biodiversity metrics
+# check distribution of biodiversity metrics and add column for sqrt of iucn
 all_data$iucn_combined_sr %>% na.omit %>% sqrt %>%  hist
 all_data$iucn_combined_sr_sqrt <- sqrt(all_data$iucn_combined_sr)
 
@@ -125,7 +138,8 @@ pairs.panels(all_data %>%  select(statehist_including_colonizers,
                                   landdist, 
                                   latitude,
                                   iucn_combined_sr_sqrt, 
-                                  log_resource_rent))
+                                  log_resource_rent, 
+                                  mineral_locations_log10))
 # OK cannot use state, agriculture years and technology together
 # should consider latitude as a drive of richness
 
@@ -145,18 +159,21 @@ all_data_clean <- all_data %>%
          range_richness = iucn_combined_sr, 
          plant_richness = plant_alpha_sr, 
          poverty_rate = poverty_headcount, 
-         governance_strength = governance) %>% 
+         governance_strength = governance, 
+         minerals = mineral_locations_log10) %>% 
   
   # convert values to scale between 0 and 1 from percentages
   mutate(poverty_rate = poverty_rate / 100, 
          national_poverty_headcount = national_poverty_headcount/100, 
          MD_poverty = MD_poverty/100, 
-         gini = gini/100) %>% 
+         gini = gini/100, 
+         governance_strength = governance_strength/100) %>% 
   
   # select only those variables of interest
   select(country, colonisation, prehistory_states, maritime_distance, land_distance, 
          poverty_rate, debt, governance_strength, 
-         landlocked, agriculture, latitude, log_resource_rent, 
+         landlocked, agriculture, latitude, 
+         log_resource_rent, minerals,
          range_richness, plant_richness, mammal_gd, 
          poverty_rate, national_poverty_headcount, MD_poverty, gini) %>% 
   

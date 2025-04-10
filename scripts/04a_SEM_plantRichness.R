@@ -92,6 +92,16 @@ saveWidget(plot(backward_sem_PR, layout = 'tree'), "temp.html")
 webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_PR.png"))
 
 
+#### SEM including latitude for pre-colonisal state and colonisation ----
+
+# these are included as were identified as missing d-seperated links
+full_sem_withLat_PR <- update(full_sem_PR, prehistory_states ~ range_richness + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness + latitude)
+saveRDS(full_sem_withLat_PR, file.path(model_dir, 'full_sem_withLat_PR.RDS'))
+
+backward_sem_withLat_PR <- backward_selection(full_sem_withLat_PR,  save_path = file.path(fig_dir, 'backward_sem_withLat_PR.csv'))
+saveRDS(backward_sem_withLat_PR, file.path(model_dir, 'backward_sem_withLat_PR.RDS'))
+
+
 #### SEM excluding latitude ----
 
 # specify peicewiseSEM
@@ -180,6 +190,17 @@ saveRDS(backward_sem_NPR, file.path(model_dir, 'backward_sem_NPR.RDS'))
 
 saveWidget(plot(backward_sem_NPR, layout = 'tree'), "temp.html")
 webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_NPR.png"))
+
+
+
+#### SEM including latitude for pre-colonisal state and colonisation ----
+
+# these are included as were identified as missing d-seperated links
+full_sem_withLat_NPR <- update(full_sem_NPR, prehistory_states ~ mammal_gd + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + mammal_gd + latitude)
+saveRDS(full_sem_withLat_NPR, file.path(model_dir, 'full_sem_withLat_NPR.RDS'))
+
+backward_sem_withLat_NPR <- backward_selection(full_sem_withLat_NPR,  save_path = file.path(fig_dir, 'backward_sem_withLat_NPR.csv'))
+saveRDS(backward_sem_withLat_NPR, file.path(model_dir, 'backward_sem_withLat_NPR.RDS'))
 
 
 
@@ -273,6 +294,17 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_MDP.png"))
 
 
 
+#### SEM including latitude for pre-colonisal state and colonisation ----
+
+# these are included as were identified as missing d-seperated links
+full_sem_withLat_MDP <- update(full_sem_MDP, prehistory_states ~ mammal_gd + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + mammal_gd + latitude)
+saveRDS(full_sem_withLat_MDP, file.path(model_dir, 'full_sem_withLat_MDP.RDS'))
+
+backward_sem_withLat_MDP <- backward_selection(full_sem_withLat_MDP,  save_path = file.path(fig_dir, 'backward_sem_withLat_MDP.csv'))
+saveRDS(backward_sem_withLat_MDP, file.path(model_dir, 'backward_sem_withLat_MDP.RDS'))
+
+
+
 #### SEM excluding latitude ----
 
 # specify peicewiseSEM
@@ -362,6 +394,15 @@ saveRDS(backward_sem_GINI, file.path(model_dir, 'backward_sem_GINI.RDS'))
 saveWidget(plot(backward_sem_GINI, layout = 'tree'), "temp.html")
 webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_GINI.png"))
 
+
+#### SEM including latitude for pre-colonisal state and colonisation ----
+
+# these are included as were identified as missing d-seperated links
+full_sem_withLat_GINI <- update(full_sem_GINI, prehistory_states ~ mammal_gd + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + mammal_gd + latitude)
+saveRDS(full_sem_withLat_GINI, file.path(model_dir, 'full_sem_withLat_GINI.RDS'))
+
+backward_sem_withLat_GINI <- backward_selection(full_sem_withLat_GINI,  save_path = file.path(fig_dir, 'backward_sem_withLat_GINI.csv'))
+saveRDS(backward_sem_withLat_GINI, file.path(model_dir, 'backward_sem_withLat_GINI.RDS'))
 
 
 #### SEM excluding latitude ----

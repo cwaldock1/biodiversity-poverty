@@ -126,7 +126,7 @@ dev.off()
 
 
 png('figures/SEM_analysis/effect_tables/effect_plots_backward_models_tall.png', 
-    res = 500, width = 1500, height = 3000)
+    res = 500, width = 1500*1.2, height = 3000*1.2)
 ggplot(data = all_effects %>% 
          filter(effect_type != 'total', 
                 grepl('backward_sem', model_name))) + 
