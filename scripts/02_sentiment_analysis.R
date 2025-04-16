@@ -1,6 +1,6 @@
 ### Extract text from pdfs
 
-pacman::p_load(pdftools)
+pacman::p_load(pdftools, tidyverse)
 
 pdfs <- list.files('data/sentiment-analysis/policy_pdfs', full.names = T)
 

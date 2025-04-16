@@ -3,14 +3,20 @@
 pacman::p_load(tidyverse, dplyr, tidyr, sf, tmap, terra, ggh4x, mclust, GGally, rworldxtra, broom, tidyr, 
                foreign, wbstats, janitor, htmlwidgets, webshot, piecewiseSEM, semEff, ggplot2)
 
-fig_dir <- 'figures/SEM_analysis/model_summaries/range_richness/'
-dir.create(fig_dir, recursive = T)
+source('scripts/function_backwardSelectionSEM.R')
+
+sum_dir <- 'figures/SEM_analysis/model_summaries/range_richness/'
+lapply(c('noLat', 'latOnly', 'full_model'), function(x) dir.create(file.path(sum_dir, x), recursive = T))
 
 plot_dir <- 'figures/SEM_analysis/plots/range_richness/'
-dir.create(plot_dir, recursive = T)
+lapply(c('noLat', 'latOnly', 'full_model'), function(x) dir.create(file.path(plot_dir, x), recursive = T))
 
 model_dir <- 'figures/SEM_analysis/model_runs/range_richness/'
-dir.create(model_dir, recursive = T)
+lapply(c('noLat', 'latOnly', 'full_model'), function(x) dir.create(file.path(model_dir, x), recursive = T))
+
+effect_dir <- 'figures/SEM_analysis/effect_tables/'
+dir.create(effect_dir, recursive = T)
+
 
 # read in cleaned data
 all_data_clean <- readRDS('data/SEM_dataInput.RDS')
@@ -20,7 +26,7 @@ full_sem_data_PR <- all_data_clean %>%
   # select all variables
   select(range_richness, latitude, log_resource_rent, prehistory_states, colonisation,
          maritime_distance, land_distance, log_resource_rent, governance_strength, 
-         debt, poverty_rate, landlocked, agriculture) %>% 
+         debt, poverty_rate, landlocked, agriculture, minerals) %>% 
   na.omit %>% 
   data.frame
 
@@ -29,7 +35,7 @@ full_sem_data_NPR <- all_data_clean %>%
   # select all variables
   select(range_richness, latitude, log_resource_rent, prehistory_states, colonisation,
          maritime_distance, land_distance, log_resource_rent, governance_strength, 
-         debt, national_poverty_headcount, landlocked, agriculture) %>% 
+         debt, national_poverty_headcount, landlocked, agriculture, minerals) %>% 
   na.omit %>% 
   data.frame
 
@@ -38,7 +44,7 @@ full_sem_data_MDP <- all_data_clean %>%
   # select all variables
   select(range_richness, latitude, log_resource_rent, prehistory_states, colonisation,
          maritime_distance, land_distance, log_resource_rent, governance_strength, 
-         debt, MD_poverty, landlocked, agriculture) %>% 
+         debt, MD_poverty, landlocked, agriculture, minerals) %>% 
   na.omit %>% 
   data.frame
 
@@ -47,7 +53,7 @@ full_sem_data_GINI <- all_data_clean %>%
   # select all variables
   select(range_richness, latitude, log_resource_rent, prehistory_states, colonisation,
          maritime_distance, land_distance, log_resource_rent, governance_strength, 
-         debt, gini, landlocked, agriculture) %>% 
+         debt, gini, landlocked, agriculture, minerals) %>% 
   na.omit %>% 
   data.frame
 
@@ -62,52 +68,37 @@ full_sem_data_GINI <- all_data_clean %>%
 full_sem_PR <- psem(
   
   # richness predicted by latitude
-  lm(range_richness ~ latitude, data = full_sem_data_PR),
-  lm(log_resource_rent ~ latitude, data = full_sem_data_PR),
-  lm(prehistory_states ~ range_richness , data = full_sem_data_PR),
+  range_richness        = lm(range_richness ~ latitude, data = full_sem_data_PR),
+  minerals              = lm(minerals ~ latitude, data = full_sem_data_PR),
+  prehistory_states     = glm(prehistory_states ~ range_richness , data = full_sem_data_PR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_PR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_PR),
   
-  glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR, family = 'binomial'),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_PR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness + colonisation, 
-      family = 'binomial', data = full_sem_data_PR),
+  poverty_rate          = glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + range_richness + colonisation, 
+                              family = 'binomial', data = full_sem_data_PR),
   
   data = full_sem_data_PR
   
+  
 )
 
-fisherC(full_sem_PR) # model is not valid # p<0.05
 summary(full_sem_PR)
-write_csv(coefs(full_sem_PR), file.path(fig_dir, 'full_sem_PR.csv'))
-saveRDS(full_sem_PR, file.path(model_dir, 'full_sem_PR.RDS'))
+write_csv(coefs(full_sem_PR), file.path(sum_dir, 'full_model', 'full_PR.csv'))
+saveRDS(full_sem_PR, file.path(model_dir, 'full_model', 'full_PR.RDS'))
 
-saveWidget(plot(full_sem_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file = file.path(plot_dir, "full_sem_PR.png"))
-
-
-# perform model selection 
-backward_sem_PR <- backward_selection(full_sem_PR,  save_path = file.path(fig_dir, 'backward_sem_full_PR.csv'))
-saveRDS(backward_sem_PR, file.path(model_dir, 'backward_sem_PR.RDS'))
-
-saveWidget(plot(backward_sem_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file = file.path(plot_dir, "backward_sem_PR.png"))
-
-
-
-#### SEM including latitude for pre-colonisal state and colonisation ----
-
-# these are included as were identified as missing d-seperated links
-full_sem_withLat_PR <- update(full_sem_PR, prehistory_states ~ range_richness + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness + latitude)
-saveRDS(full_sem_withLat_PR, file.path(model_dir, 'full_sem_withLat_PR.RDS'))
-
-backward_sem_withLat_PR <- backward_selection(full_sem_withLat_PR,  save_path = file.path(fig_dir, 'backward_sem_withLat_PR.csv'))
-saveRDS(backward_sem_withLat_PR, file.path(model_dir, 'backward_sem_withLat_PR.RDS'))
+saveWidget(plot_nice(full_sem_PR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file = file.path(plot_dir, 'full_model', "full_PR.png"))
 
 
 #### SEM excluding latitude ----
@@ -116,38 +107,40 @@ saveRDS(backward_sem_withLat_PR, file.path(model_dir, 'backward_sem_withLat_PR.R
 noLat_sem_PR <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ range_richness, data = full_sem_data_PR),
+  prehistory_states     = glm(prehistory_states ~ range_richness, data = full_sem_data_PR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_PR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_PR),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_PR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_PR),
+  poverty_rate          = glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + range_richness + colonisation, 
+                              family = 'binomial', data = full_sem_data_PR),
   
-  data = full_sem_data_PR 
-  
+  data = full_sem_data_PR  
 )
 
-fisherC(noLat_sem_PR) # model is not valid # p<0.05
 summary(noLat_sem_PR)
-write_csv(coefs(noLat_sem_PR), file.path(fig_dir, 'noLat_sem_PR.csv'))
-saveRDS(noLat_sem_PR, file.path(model_dir, 'noLat_sem_PR.RDS'))
+write_csv(coefs(noLat_sem_PR), file.path(sum_dir, 'noLat', 'full_PR.csv'))
+saveRDS(noLat_sem_PR, file.path(model_dir, 'noLat', 'full_PR.RDS'))
 
-saveWidget(plot(noLat_sem_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "noLat_sem_PR.png"))
+saveWidget(plot_nice(noLat_sem_PR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "full_PR.png"))
 
 # perform model selection 
-backward_noLat_sem_PR <- backward_selection(noLat_sem_PR,  save_path = file.path(fig_dir, 'backward_sem_noLat_PR.csv'))
-saveRDS(backward_noLat_sem_PR, file.path(model_dir, 'backward_noLat_sem_PR.RDS'))
+backward_noLat_sem_PR <- backward_selection(noLat_sem_PR,  save_path = file.path(sum_dir, 'noLat', 'backward_PR.csv'))
+saveRDS(backward_noLat_sem_PR, file.path(model_dir,'noLat', 'backward_PR.RDS'))
 
-saveWidget(plot(backward_noLat_sem_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_PR.png"))
+saveWidget(plot_nice(backward_noLat_sem_PR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "backward_PR.png"))
 
 
 
@@ -160,56 +153,41 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_PR.pn
 
 #### Create set of baseline SEM for NATIONAL POVERTY RATE ----
 
-
 # specify peicewiseSEM
 full_sem_NPR <- psem(
   
   # richness predicted by latitude
-  lm(range_richness ~ latitude, data = full_sem_data_NPR),
-  lm(log_resource_rent ~ latitude, data = full_sem_data_NPR),
-  lm(prehistory_states ~ range_richness, data = full_sem_data_NPR),
+  range_richness        = lm(range_richness ~ latitude, data = full_sem_data_NPR),
+  minerals              = lm(minerals ~ latitude, data = full_sem_data_NPR),
+  prehistory_states     = glm(prehistory_states ~ range_richness , data = full_sem_data_NPR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_NPR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_NPR),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_NPR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_NPR),
+  national_poverty_headcount          = glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + range_richness + colonisation, 
+                              family = 'binomial', data = full_sem_data_NPR),
   
   data = full_sem_data_NPR
   
+  
 )
 
-fisherC(full_sem_NPR) # model is not valid # p<0.05
 summary(full_sem_NPR)
-write_csv(coefs(full_sem_NPR), file.path(fig_dir, 'full_sem_NPR.csv'))
-saveRDS(full_sem_NPR, file.path(model_dir, 'full_sem_NPR.RDS'))
+write_csv(coefs(full_sem_NPR), file.path(sum_dir, 'full_model', 'full_NPR.csv'))
+saveRDS(full_sem_NPR, file.path(model_dir, 'full_model', 'full_NPR.RDS'))
 
-saveWidget(plot(full_sem_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "full_sem_NPR.png"))
-
-# perform model selection 
-backward_sem_NPR <- backward_selection(full_sem_NPR,  save_path = file.path(fig_dir, 'backward_sem_full_NPR.csv'))
-saveRDS(backward_sem_NPR, file.path(model_dir, 'backward_sem_NPR.RDS'))
-
-saveWidget(plot(backward_sem_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_NPR.png"))
-
-
-
-#### SEM including latitude for pre-colonisal state and colonisation ----
-
-# these are included as were identified as missing d-seperated links
-full_sem_withLat_NPR <- update(full_sem_NPR, prehistory_states ~ range_richness + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness + latitude)
-saveRDS(full_sem_withLat_NPR, file.path(model_dir, 'full_sem_withLat_NPR.RDS'))
-
-backward_sem_withLat_NPR <- backward_selection(full_sem_withLat_NPR,  save_path = file.path(fig_dir, 'backward_sem_withLat_NPR.csv'))
-saveRDS(backward_sem_withLat_NPR, file.path(model_dir, 'backward_sem_withLat_NPR.RDS'))
+saveWidget(plot_nice(full_sem_NPR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file = file.path(plot_dir, 'full_model', "full_NPR.png"))
 
 
 #### SEM excluding latitude ----
@@ -218,39 +196,40 @@ saveRDS(backward_sem_withLat_NPR, file.path(model_dir, 'backward_sem_withLat_NPR
 noLat_sem_NPR <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ range_richness, data = full_sem_data_NPR),
+  prehistory_states     = glm(prehistory_states ~ range_richness, data = full_sem_data_NPR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_NPR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_NPR),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_NPR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_NPR),
+  national_poverty_headcount          = glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + range_richness + colonisation, 
+                              family = 'binomial', data = full_sem_data_NPR),
   
-  data = full_sem_data_NPR 
-  
+  data = full_sem_data_NPR  
 )
 
-fisherC(noLat_sem_NPR) # model is not valid # p<0.05
 summary(noLat_sem_NPR)
-write_csv(coefs(noLat_sem_NPR), file.path(fig_dir, 'noLat_sem_NPR.csv'))
-saveRDS(noLat_sem_NPR, file.path(model_dir, 'noLat_sem_NPR.RDS'))
+write_csv(coefs(noLat_sem_NPR), file.path(sum_dir, 'noLat', 'full_NPR.csv'))
+saveRDS(noLat_sem_NPR, file.path(model_dir, 'noLat', 'full_NPR.RDS'))
 
-saveWidget(plot(noLat_sem_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "noLat_sem_NPR.png"))
+saveWidget(plot_nice(noLat_sem_NPR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "full_NPR.png"))
 
 # perform model selection 
-backward_noLat_sem_NPR <- backward_selection(noLat_sem_NPR,  save_path = file.path(fig_dir, 'backward_sem_noLat_NPR.csv'))
-saveRDS(backward_noLat_sem_NPR, file.path(model_dir, 'backward_noLat_sem_NPR.RDS'))
+backward_noLat_sem_NPR <- backward_selection(noLat_sem_NPR,  save_path = file.path(sum_dir, 'noLat', 'backward_NPR.csv'))
+saveRDS(backward_noLat_sem_NPR, file.path(model_dir,'noLat', 'backward_NPR.RDS'))
 
-saveWidget(plot(backward_noLat_sem_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_NPR.png"))
-
+saveWidget(plot_nice(backward_noLat_sem_NPR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "backward_NPR.png"))
 
 
 #############################################################################################################################################
@@ -264,52 +243,37 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_NPR.p
 full_sem_MDP <- psem(
   
   # richness predicted by latitude
-  lm(range_richness ~ latitude, data = full_sem_data_MDP),
-  lm(log_resource_rent ~ latitude, data = full_sem_data_MDP),
-  lm(prehistory_states ~ range_richness, data = full_sem_data_MDP),
+  range_richness        = lm(range_richness ~ latitude, data = full_sem_data_MDP),
+  minerals              = lm(minerals ~ latitude, data = full_sem_data_MDP),
+  prehistory_states     = glm(prehistory_states ~ range_richness , data = full_sem_data_MDP, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_MDP),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_MDP),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_MDP),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_MDP),
+  MD_poverty          = glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture +
+                                              log_resource_rent + range_richness + colonisation, 
+                                            family = 'binomial', data = full_sem_data_MDP),
   
   data = full_sem_data_MDP
   
+  
 )
 
-fisherC(full_sem_MDP) # model is not valid # p<0.05
 summary(full_sem_MDP)
-write_csv(coefs(full_sem_MDP), file.path(fig_dir, 'full_sem_MDP.csv'))
-saveRDS(full_sem_MDP, file.path(model_dir, 'full_sem_MDP.RDS'))
+write_csv(coefs(full_sem_MDP), file.path(sum_dir, 'full_model', 'full_MDP.csv'))
+saveRDS(full_sem_MDP, file.path(model_dir, 'full_model', 'full_MDP.RDS'))
 
-saveWidget(plot(full_sem_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "full_sem_MDP.png"))
-
-# perform model selection 
-backward_sem_MDP <- backward_selection(full_sem_MDP,  save_path = file.path(fig_dir, 'backward_sem_full_MDP.csv'))
-saveRDS(backward_sem_MDP, file.path(model_dir, 'backward_sem_MDP.RDS'))
-
-saveWidget(plot(backward_sem_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_MDP.png"))
-
-
-
-#### SEM including latitude for pre-colonisal state and colonisation ----
-
-# these are included as were identified as missing d-seperated links
-full_sem_withLat_MDP <- update(full_sem_MDP, prehistory_states ~ range_richness + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness + latitude)
-saveRDS(full_sem_withLat_MDP, file.path(model_dir, 'full_sem_withLat_MDP.RDS'))
-
-backward_sem_withLat_MDP <- backward_selection(full_sem_withLat_MDP,  save_path = file.path(fig_dir, 'backward_sem_withLat_MDP.csv'))
-saveRDS(backward_sem_withLat_MDP, file.path(model_dir, 'backward_sem_withLat_MDP.RDS'))
-
+saveWidget(plot_nice(full_sem_MDP, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file = file.path(plot_dir, 'full_model', "full_MDP.png"))
 
 
 #### SEM excluding latitude ----
@@ -318,38 +282,40 @@ saveRDS(backward_sem_withLat_MDP, file.path(model_dir, 'backward_sem_withLat_MDP
 noLat_sem_MDP <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ range_richness, data = full_sem_data_MDP),
+  prehistory_states     = glm(prehistory_states ~ range_richness, data = full_sem_data_MDP, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_MDP),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_MDP),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_MDP),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_MDP),
+  MD_poverty          = glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture +
+                                              log_resource_rent + range_richness + colonisation, 
+                                            family = 'binomial', data = full_sem_data_MDP),
   
-  data = full_sem_data_MDP 
-  
+  data = full_sem_data_MDP  
 )
 
-fisherC(noLat_sem_MDP) # model is not valid # p<0.05
 summary(noLat_sem_MDP)
-write_csv(coefs(noLat_sem_MDP), file.path(fig_dir, 'noLat_sem_MDP.csv'))
-saveRDS(noLat_sem_MDP, file.path(model_dir, 'noLat_sem_MDP.RDS'))
+write_csv(coefs(noLat_sem_MDP), file.path(sum_dir, 'noLat', 'full_MDP.csv'))
+saveRDS(noLat_sem_MDP, file.path(model_dir, 'noLat', 'full_MDP.RDS'))
 
-saveWidget(plot(noLat_sem_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "noLat_sem_MDP.png"))
+saveWidget(plot_nice(noLat_sem_MDP, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "full_MDP.png"))
 
 # perform model selection 
-backward_noLat_sem_MDP <- backward_selection(noLat_sem_MDP,  save_path = file.path(fig_dir, 'backward_sem_noLat_MDP.csv'))
-saveRDS(backward_noLat_sem_MDP, file.path(model_dir, 'backward_noLat_sem_MDP.RDS'))
+backward_noLat_sem_MDP <- backward_selection(noLat_sem_MDP,  save_path = file.path(sum_dir, 'noLat', 'backward_MDP.csv'))
+saveRDS(backward_noLat_sem_MDP, file.path(model_dir,'noLat', 'backward_MDP.RDS'))
 
-saveWidget(plot(backward_noLat_sem_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_MDP.png"))
+saveWidget(plot_nice(backward_noLat_sem_MDP, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "backward_MDP.png"))
 
 
 
@@ -364,50 +330,38 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_MDP.p
 full_sem_GINI <- psem(
   
   # richness predicted by latitude
-  lm(range_richness ~ latitude, data = full_sem_data_GINI),
-  lm(log_resource_rent ~ latitude, data = full_sem_data_GINI),
-  lm(prehistory_states ~ range_richness, data = full_sem_data_GINI),
+  range_richness        = lm(range_richness ~ latitude, data = full_sem_data_GINI),
+  minerals              = lm(minerals ~ latitude, data = full_sem_data_GINI),
+  prehistory_states     = glm(prehistory_states ~ range_richness , data = full_sem_data_GINI, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_GINI),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_GINI),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_GINI),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(gini ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness + colonisation, 
-      family = 'binomial', data = full_sem_data_GINI),
+  gini          = glm(gini ~ debt + governance_strength + landlocked + agriculture +
+                              log_resource_rent + range_richness + colonisation, 
+                            family = 'binomial', data = full_sem_data_GINI),
   
   data = full_sem_data_GINI
   
+  
 )
 
-fisherC(full_sem_GINI) # model is not valid # p<0.05
 summary(full_sem_GINI)
-write_csv(coefs(full_sem_GINI), file.path(fig_dir, 'full_sem_GINI.csv'))
-saveRDS(full_sem_GINI, file.path(model_dir, 'full_sem_GINI.RDS'))
+write_csv(coefs(full_sem_GINI), file.path(sum_dir, 'full_model', 'full_GINI.csv'))
+saveRDS(full_sem_GINI, file.path(model_dir, 'full_model', 'full_GINI.RDS'))
 
-saveWidget(plot(full_sem_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "full_sem_GINI.png"))
+saveWidget(plot_nice(full_sem_GINI, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file = file.path(plot_dir, 'full_model', "full_GINI.png"))
 
-# perform model selection 
-backward_sem_GINI <- backward_selection(full_sem_GINI,  save_path = file.path(fig_dir, 'backward_sem_full_GINI.csv'))
-saveRDS(backward_sem_GINI, file.path(model_dir, 'backward_sem_GINI.RDS'))
-
-saveWidget(plot(backward_sem_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_GINI.png"))
-
-
-#### SEM including latitude for pre-colonisal state and colonisation ----
-
-# these are included as were identified as missing d-seperated links
-full_sem_withLat_GINI <- update(full_sem_GINI, prehistory_states ~ range_richness + latitude, colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness + latitude)
-saveRDS(full_sem_withLat_GINI, file.path(model_dir, 'full_sem_withLat_GINI.RDS'))
-
-backward_sem_withLat_GINI <- backward_selection(full_sem_withLat_GINI,  save_path = file.path(fig_dir, 'backward_sem_withLat_GINI.csv'))
-saveRDS(backward_sem_withLat_GINI, file.path(model_dir, 'backward_sem_withLat_GINI.RDS'))
 
 #### SEM excluding latitude ----
 
@@ -415,39 +369,40 @@ saveRDS(backward_sem_withLat_GINI, file.path(model_dir, 'backward_sem_withLat_GI
 noLat_sem_GINI <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ range_richness, data = full_sem_data_GINI),
+  prehistory_states     = glm(prehistory_states ~ range_richness, data = full_sem_data_GINI, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + range_richness, family = 'binomial', data = full_sem_data_GINI),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                minerals + range_richness, family = 'binomial', data = full_sem_data_GINI),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_GINI),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(gini ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + range_richness  + colonisation, 
-      family = 'binomial', data = full_sem_data_GINI),
+  gini          = glm(gini ~ debt + governance_strength + landlocked + agriculture +
+                              log_resource_rent + range_richness + colonisation, 
+                            family = 'binomial', data = full_sem_data_GINI),
   
-  data = full_sem_data_GINI 
-  
+  data = full_sem_data_GINI  
 )
 
-fisherC(noLat_sem_GINI) # model is not valid # p<0.05
 summary(noLat_sem_GINI)
-write_csv(coefs(noLat_sem_GINI), file.path(fig_dir, 'noLat_sem_GINI.csv'))
-saveRDS(noLat_sem_GINI, file.path(model_dir, 'noLat_sem_GINI.RDS'))
+write_csv(coefs(noLat_sem_GINI), file.path(sum_dir, 'noLat', 'full_GINI.csv'))
+saveRDS(noLat_sem_GINI, file.path(model_dir, 'noLat', 'full_GINI.RDS'))
 
-saveWidget(plot(noLat_sem_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "noLat_sem_GINI.png"))
+saveWidget(plot_nice(noLat_sem_GINI, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "full_GINI.png"))
 
 # perform model selection 
-backward_noLat_sem_GINI <- backward_selection(noLat_sem_GINI,  save_path = file.path(fig_dir, 'backward_sem_noLat_GINI.csv'))
-saveRDS(backward_noLat_sem_GINI, file.path(model_dir, 'backward_noLat_sem_GINI.RDS'))
+backward_noLat_sem_GINI <- backward_selection(noLat_sem_GINI,  save_path = file.path(sum_dir, 'noLat', 'backward_GINI.csv'))
+saveRDS(backward_noLat_sem_GINI, file.path(model_dir,'noLat', 'backward_GINI.RDS'))
 
-saveWidget(plot(backward_noLat_sem_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_GINI.png"))
-
+saveWidget(plot_nice(backward_noLat_sem_GINI, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'noLat', "backward_GINI.png"))
 
 
 #############################################################################################################################################
@@ -462,35 +417,39 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_noLat_sem_GINI.
 latOnly_sem_PR <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ latitude, data = full_sem_data_PR),
+  prehistory_states     = glm(prehistory_states ~ latitude, data = full_sem_data_PR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + latitude, family = 'binomial', data = full_sem_data_PR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                latitude, family = 'binomial', data = full_sem_data_PR),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_PR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_PR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_PR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + latitude + colonisation, 
-      family = 'binomial', data = full_sem_data_PR),
+  poverty_rate          = glm(poverty_rate ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + latitude + colonisation, 
+                              family = 'binomial', data = full_sem_data_PR),
   
-  data = full_sem_data_PR
+  data = full_sem_data_PR  
   
 )
-write_csv(coefs(latOnly_sem_PR), file.path(fig_dir, 'latOnly_sem_PR.csv'))
-saveRDS(latOnly_sem_PR, file.path(model_dir, 'llatOnly_sem_PR.RDS'))
+write_csv(coefs(latOnly_sem_PR), file.path(sum_dir, 'latOnly', 'full_PR.csv'))
+saveRDS(latOnly_sem_PR, file.path(model_dir, 'latOnly', 'full_PR.RDS'))
 
-saveWidget(plot(latOnly_sem_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "latOnly_sem_PR.png"))
+saveWidget(plot_nice(latOnly_sem_PR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir, 'latOnly', 'full_PR.png'))
 
 # perform model selection 
-backward_sem_latOnly_PR <- backward_selection(latOnly_sem_PR,  save_path = file.path(fig_dir, 'backward_sem_latOnly_PR.csv'))
-saveRDS(backward_sem_latOnly_PR, file.path(model_dir, 'backward_sem_latOnly_PR.RDS'))
+backward_sem_latOnly_PR <- backward_selection(latOnly_sem_PR,  save_path = file.path(sum_dir,'latOnly', 'backward_PR.csv'))
+saveRDS(backward_sem_latOnly_PR, file.path(model_dir,'latOnly','backward_PR.RDS'))
 
-saveWidget(plot(backward_sem_latOnly_PR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_PR.png"))
+saveWidget(plot_nice(backward_sem_latOnly_PR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'latOnly', "backward_PR.png"))
 
 
 
@@ -500,35 +459,39 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_PR.
 latOnly_sem_NPR <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ latitude, data = full_sem_data_NPR),
+  prehistory_states     = glm(prehistory_states ~ latitude, data = full_sem_data_NPR, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + latitude, family = 'binomial', data = full_sem_data_NPR),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                latitude, family = 'binomial', data = full_sem_data_NPR),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_NPR),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_NPR, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_NPR),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + latitude + colonisation, 
-      family = 'binomial', data = full_sem_data_NPR),
+  national_poverty_headcount          = glm(national_poverty_headcount ~ debt + governance_strength + landlocked + agriculture +
+                                log_resource_rent + latitude + colonisation, 
+                              family = 'binomial', data = full_sem_data_NPR),
   
-  data = full_sem_data_NPR
+  data = full_sem_data_NPR  
   
 )
-write_csv(coefs(latOnly_sem_NPR), file.path(fig_dir, 'latOnly_sem_NPR.csv'))
-saveRDS(latOnly_sem_NPR, file.path(model_dir, 'latOnly_sem_NPR.RDS'))
+write_csv(coefs(latOnly_sem_NPR), file.path(sum_dir,'latOnly', 'full_NPR.csv'))
+saveRDS(latOnly_sem_NPR, file.path(model_dir, 'latOnly', 'full_NPR.RDS'))
 
-saveWidget(plot(latOnly_sem_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "latOnly_sem_NPR.png"))
+saveWidget(plot_nice(latOnly_sem_NPR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir, 'latOnly', 'full_NPR.png'))
 
 # perform model selection 
-backward_sem_latOnly_NPR <- backward_selection(latOnly_sem_NPR,  save_path = file.path(fig_dir, 'backward_sem_latOnly_NPR.csv'))
-saveRDS(backward_sem_latOnly_NPR, file.path(model_dir, 'backward_sem_latOnly_NPR.RDS'))
+backward_sem_latOnly_NPR <- backward_selection(latOnly_sem_NPR,  save_path = file.path(sum_dir,'latOnly', 'backward_NPR.csv'))
+saveRDS(backward_sem_latOnly_NPR, file.path(model_dir,'latOnly','backward_NPR.RDS'))
 
-saveWidget(plot(backward_sem_latOnly_NPR, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_NPR.png"))
+saveWidget(plot_nice(backward_sem_latOnly_NPR, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'latOnly', "backward_NPR.png"))
 
 
 
@@ -539,36 +502,39 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_NPR
 latOnly_sem_MDP <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ latitude, data = full_sem_data_MDP),
+  prehistory_states     = glm(prehistory_states ~ latitude, data = full_sem_data_MDP, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + latitude, family = 'binomial', data = full_sem_data_MDP),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                latitude, family = 'binomial', data = full_sem_data_MDP),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_MDP),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_MDP, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_MDP),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + latitude + colonisation, 
-      family = 'binomial', data = full_sem_data_MDP),
+  MD_poverty          = glm(MD_poverty ~ debt + governance_strength + landlocked + agriculture +
+                                              log_resource_rent + latitude + colonisation, 
+                                            family = 'binomial', data = full_sem_data_MDP),
   
-  data = full_sem_data_MDP
+  data = full_sem_data_MDP 
   
 )
-write_csv(coefs(latOnly_sem_MDP), file.path(fig_dir, 'latOnly_sem_MDP.csv'))
-saveRDS(latOnly_sem_MDP, file.path(model_dir, 'latOnly_sem_MDP.RDS'))
+write_csv(coefs(latOnly_sem_MDP), file.path(sum_dir,'latOnly', 'full_MDP.csv'))
+saveRDS(latOnly_sem_MDP, file.path(model_dir, 'latOnly', 'full_MDP.RDS'))
 
-saveWidget(plot(latOnly_sem_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "latOnly_sem_MDP.png"))
-
+saveWidget(plot_nice(latOnly_sem_MDP, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir, 'latOnly', 'full_MDP.png'))
 
 # perform model selection 
-backward_sem_latOnly_MDP <- backward_selection(latOnly_sem_MDP,  save_path = file.path(fig_dir, 'backward_sem_latOnly_MDP.csv'))
-saveRDS(backward_sem_latOnly_MDP, file.path(model_dir, 'backward_sem_latOnly_MDP.RDS'))
+backward_sem_latOnly_MDP <- backward_selection(latOnly_sem_MDP,  save_path = file.path(sum_dir,'latOnly', 'backward_MDP.csv'))
+saveRDS(backward_sem_latOnly_MDP, file.path(model_dir,'latOnly','backward_MDP.RDS'))
 
-saveWidget(plot(backward_sem_latOnly_MDP, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_MDP.png"))
+saveWidget(plot_nice(backward_sem_latOnly_MDP, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'latOnly', "backward_MDP.png"))
 
 
 
@@ -577,36 +543,39 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_MDP
 latOnly_sem_GINI <- psem(
   
   # richness predicted by latitude
-  lm(prehistory_states ~ latitude, data = full_sem_data_GINI),
+  prehistory_states     = glm(prehistory_states ~ latitude, data = full_sem_data_GINI, family = 'binomial'),
   
   # colonisation predicted by socio-economic history and biodiversity
-  glm(colonisation ~ prehistory_states + maritime_distance + land_distance + log_resource_rent + latitude, family = 'binomial', data = full_sem_data_GINI),
+  colonisation          = glm(colonisation ~ prehistory_states + maritime_distance + land_distance + 
+                                latitude, family = 'binomial', data = full_sem_data_GINI),
   
-  lm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI),
+  log_resource_rent     = glm(log_resource_rent ~ colonisation, data = full_sem_data_GINI),
+  
+  governance_strength   = glm(governance_strength ~ colonisation + log_resource_rent, data = full_sem_data_GINI, family = 'binomial'),
   
   # debt predicted by colonisation history
-  glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
+  debt                  = glm(debt ~ colonisation + governance_strength + log_resource_rent, family = 'binomial', data = full_sem_data_GINI),
   
   # proverty predicted by debt, geography, agriculture, and biodiversity
-  glm(gini ~ debt + governance_strength + landlocked + agriculture + log_resource_rent + latitude + colonisation, 
-      family = 'binomial', data = full_sem_data_GINI),
+  gini          = glm(gini ~ debt + governance_strength + landlocked + agriculture +
+                              log_resource_rent + latitude + colonisation, 
+                            family = 'binomial', data = full_sem_data_GINI),
   
   data = full_sem_data_GINI
   
 )
-write_csv(coefs(latOnly_sem_GINI), file.path(fig_dir, 'latOnly_sem_GINI.csv'))
-saveRDS(latOnly_sem_GINI, file.path(model_dir, 'latOnly_sem_GINI.RDS'))
+write_csv(coefs(latOnly_sem_GINI), file.path(sum_dir,'latOnly', 'full_GINI.csv'))
+saveRDS(latOnly_sem_GINI, file.path(model_dir, 'latOnly', 'full_GINI.RDS'))
 
-saveWidget(plot(latOnly_sem_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "latOnly_sem_GINI.png"))
+saveWidget(plot_nice(latOnly_sem_GINI, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir, 'latOnly', 'full_GINI.png'))
 
 # perform model selection 
-backward_sem_latOnly_GINI <- backward_selection(latOnly_sem_GINI,  save_path = file.path(fig_dir, 'backward_sem_latOnly_GINI.csv'))
-saveRDS(backward_sem_latOnly_GINI, file.path(model_dir, 'backward_sem_latOnly_GINI.RDS'))
+backward_sem_latOnly_GINI <- backward_selection(latOnly_sem_GINI,  save_path = file.path(sum_dir,'latOnly', 'backward_GINI.csv'))
+saveRDS(backward_sem_latOnly_GINI, file.path(model_dir,'latOnly','backward_GINI.RDS'))
 
-saveWidget(plot(backward_sem_latOnly_GINI, layout = 'tree'), "temp.html")
-webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_GINI.png"))
-
+saveWidget(plot_nice(backward_sem_latOnly_GINI, layout = 'tree'), "temp.html")
+webshot::webshot("temp.html", file=file.path(plot_dir,'latOnly', "backward_GINI.png"))
 
 
 
@@ -616,32 +585,32 @@ webshot::webshot("temp.html", file=file.path(plot_dir, "backward_sem_latOnly_GIN
 #############################################################################################################################################
 
 # range richness
-model_fit_list <- list.files('figures/SEM_analysis/model_runs/range_richness', full.names = T)
+model_fit_list <- list.files('figures/SEM_analysis/model_runs/range_richness', full.names = T, recursive = T)
 
 # get 8 of main interest
-patterns <- c('PR', 'NPR', 'MDP', 'GINI')
-regex <- paste0('(backward|full)_sem_(', paste(patterns, collapse = '|'), ')')
-model_subset_list <- model_fit_list[grepl(regex, model_fit_list)]
+# patterns <- c('PR', 'NPR', 'MDP', 'GINI')
+# regex <- paste0('(backward|full)_sem_(', paste(patterns, collapse = '|'), ')')
+# model_subset_list <- model_fit_list[grepl(regex, model_fit_list)]
 
 # read in all models
-model_read <- lapply(model_subset_list, readRDS)
+model_read <- lapply(model_fit_list, readRDS)
 
 # get model effects for the selected models
-model_effects <- lapply(seq_along(model_subset_list), function(x){
+model_effects <- lapply(seq_along(model_fit_list), function(x){
   
   tryCatch({
    # read model
-   model_strings <- str_split(model_subset_list[x], '/', simplify = T)
+   model_strings <- str_split(model_fit_list[x], '/', simplify = T)
    bio_metric <- model_strings[,4]
-   split_string <- gsub('.RDS','', model_strings[,5])[[1]]
+   split_string <- gsub('.RDS','', model_strings[,6])[[1]]
    split_string <- strsplit(split_string, "_")[[1]]
    pov_metric <- split_string[length(split_string)]
-   model_name <- paste(str_split(gsub('.RDS','', model_strings[,5]), '_', simplify = T)[,1:3], collapse = '_')
+   model_name <- gsub('.RDS', '', paste(model_strings[,4:6], collapse = '_'))
    
    model1 <- model_read[[x]]
    
    # boostrap model
-   boot1 <- bootEff(model1, R = 1000, seed = 1, parallel = 'no')
+   boot1 <- bootEff(model1, R = 10000, seed = 1, parallel = 'no')
    boot1_effect <- semEff(boot1, predictor = "range_richness")
    eff_table <- getEffTable(boot1_effect) %>% 
      filter(effect_type != 'mediators') %>% 
@@ -659,9 +628,6 @@ model_effects <- lapply(seq_along(model_subset_list), function(x){
 
 final_results <- bind_rows(model_effects[!sapply(model_effects, is.null)])
 
-effect_dir <- 'figures/SEM_analysis/effect_tables/'
-dir.create(effect_dir, recursive = T)
-
 saveRDS(final_results, file.path(effect_dir, 'range_richness.RDS'))
 
 
@@ -673,12 +639,12 @@ saveRDS(final_results, file.path(effect_dir, 'range_richness.RDS'))
 # extract latitude effect as proxy of species diversity
 
 # range richness
-model_fit_list <- list.files('figures/SEM_analysis/model_runs/range_richness', full.names = T)
+model_fit_list <- list.files('figures/SEM_analysis/model_runs/range_richness/latOnly', full.names = T, recursive = T)
 
 # get 8 of main interest
 patterns <- c('PR', 'NPR', 'MDP', 'GINI')
 # regex <- paste0('(backward_sem_withLat)', paste(patterns, collapse = '|'), ')')
-model_subset_list <- model_fit_list[grepl('backward_sem_withLat|backward_noLat_sem', model_fit_list)]
+model_subset_list <- model_fit_list[grepl('latOnly', model_fit_list)]
 
 # read in all models
 model_read <- lapply(model_subset_list, readRDS)
@@ -686,19 +652,21 @@ model_read <- lapply(model_subset_list, readRDS)
 # get model effects for the selected models
 model_effects <- lapply(seq_along(model_subset_list), function(x){
   
+  print(model_subset_list[x])
+  
   tryCatch({
     # read model
     model_strings <- str_split(model_subset_list[x], '/', simplify = T)
     bio_metric <- 'latitude_proxy'
-    split_string <- gsub('.RDS','', model_strings[,5])[[1]]
+    split_string <- gsub('.RDS','', model_strings[,6])[[1]]
     split_string <- strsplit(split_string, "_")[[1]]
     pov_metric <- split_string[length(split_string)]
-    model_name <- paste(str_split(gsub('.RDS','', model_strings[,5]), '_', simplify = T)[,1:3], collapse = '_')
+    model_name <- gsub('.RDS', '', paste(model_strings[,4:6], collapse = '_'))
     
     model1 <- model_read[[x]]
     
     # boostrap model
-    boot1 <- bootEff(model1, R = 100, seed = 1, parallel = 'no')
+    boot1 <- bootEff(model1, R = 1000, seed = 1, parallel = 'no')
     boot1_effect <- semEff(boot1, predictor = "latitude")
     eff_table <- getEffTable(boot1_effect) %>% 
       filter(effect_type != 'mediators') %>% 
@@ -716,8 +684,6 @@ model_effects <- lapply(seq_along(model_subset_list), function(x){
 
 final_results <- bind_rows(model_effects[!sapply(model_effects, is.null)])
 
-effect_dir <- 'figures/SEM_analysis/effect_tables/'
-dir.create(effect_dir, recursive = T)
 
 saveRDS(final_results, file.path(effect_dir, 'latitude.RDS'))
 
