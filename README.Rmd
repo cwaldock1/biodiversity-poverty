@@ -8,9 +8,15 @@ date: "`r Sys.Date()`"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Abstract
+
+Biodiversity is declining globally while inequity is growing, and poverty rates are not improving. Global sustainable development initiatives aim to address biodiversity loss and poverty simultaneously. Through text analysis of global sustainability policies, we identified a persistent narrative whereby countries with high biodiversity are expected to use this natural capital to reduce poverty. Paradoxically, however, countries with higher biodiversity often experience higher poverty rates. In a path analysis integrating multiple sources of biological, historical, and socio-economic data, we show how this paradox emerges. We find that historical colonial exploitation was directed by biodiversity gradients, and through socio-economic legacies continues to influence present-day poverty. Biodiversity increases poverty rates by having increased historical colonisation probability, leading to natural resource export-oriented economies with weakened governance and increased poverty rates. We find no evidence for the alternative hypothesis that biodiversity directly influences poverty, either positively or negatively, at a country scale. Whether sustainability initiatives can jointly address poverty and biodiversity conservation is challenged by our findings. Moreover, we find that conservation investments align neither with the global distribution of biodiversity nor with a country’s economic capacity to protect nature. As such, conservation initiatives risk reinforcing biodiversity-associated global inequalities which our work indicates originated over five centuries ago. The patterns revealed quantitatively support the proposed “systemic bio-inequity” hypothesis, which argues that modern biodiversity-poverty linkages are attributed to historical legacies of ecologically unequal exchange. Our findings challenge the narrative that natural wealth, and its conservation, will underpin future economic prosperity of countries. This assumption overlooks systemic, historical and institutional drivers of modern poverty. A decolonial approach is needed to address this legacy, whereby conservationists must not only recognise but challenge and replace damaging narratives that overlook past and present inequalities in access to the benefits of biodiversity.
+
 ## Info
 
 This repository contains the scripts associated with the manuscript of Waldock et al. (in prep) "*Systemic bio-inequity links poverty to biodiversity and induces a conservation paradox".*
+
+All relevant files to reproduce the work can be found in "scripts". The data are available on publication at <https://doi.org/10.6084/m9.figshare.29457614>.
 
 ## Session information
 
@@ -50,5 +56,3 @@ p_load(
 
 sessionInfo()
 ```
-
-All relevant files to reproduce the work can be found in "scripts". The data are available on publication at <https://doi.org/10.6084/m9.figshare.29457614>.
