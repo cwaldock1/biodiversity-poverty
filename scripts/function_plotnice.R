@@ -6,10 +6,11 @@ plot_nice <- function(my_sem, layout = 'tree'){
                                                                      'range_richness' = 'species range \n richness',
                                                                      'log_resource_rent' = 'natural \n resource rent',
                                                                      'prehistory_states' = 'pre-colonial \n state', 
-                                                                     'governance_strength'  = 'governance \n strength', 
+                                                                     'governance_strength'  = 'governance \n effectiveness', 
                                                                      'poverty_rate' = 'poverty rate', 
                                                                      'maritime_distance' = 'maritime distance', 
-                                                                     'land_distance' = 'land distance'))
+                                                                     'land_distance' = 'land distance', 
+                                                                     'minerals' = 'mineral availability'))
   sem_graph$edges_df <- sem_graph$edges_df %>% mutate(color = ifelse(as.numeric(label) > 0, '#005AB5', '#DC3220'))
   
    sem_graph %>%

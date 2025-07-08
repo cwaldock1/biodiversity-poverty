@@ -272,21 +272,21 @@ table(cpb$scheme)
 
 data.frame(table(cpb$pa_quantile, cpb$region)) %>% 
   group_by(Var2) %>% 
-  do(Perc = round(.$Freq/sum(.$Freq), 2)) %>% 
+  mutate(Perc = round(Freq/sum(Freq), 2)) %>% 
   unnest(Perc)
 
 # High-low poverty by region
 
 data.frame(table(cpb$pov_quantile, cpb$region)) %>% 
   group_by(Var2) %>% 
-  do(Perc = round(.$Freq/sum(.$Freq), 2)) %>% 
+  mutate(Perc = round(Freq/sum(Freq), 2)) %>% 
   unnest(Perc)
 
 # High-low biodiversity by region
 
 data.frame(table(cpb$bio_quantile, cpb$region)) %>% 
   group_by(Var2) %>% 
-  do(Perc = round(.$Freq/sum(.$Freq), 2)) %>% 
+  mutate(Perc = round(Freq/sum(Freq), 2)) %>% 
   unnest(Perc)
 
 # Table the difference classifications by the quantitative groupings
