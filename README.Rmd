@@ -1,5 +1,5 @@
 ---
-title: "README"
+title: "Systemic bio-inequity links poverty to biodiversity and induces a conservation paradox"
 output: github_document
 date: "`r Sys.Date()`"
 ---
@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Info
 
-This repository contains the scripts associated with the manuscript of Waldock et al. (in prep) "*Global coupling of poverty to biodiversity induces a conservation paradox".*
+This repository contains the scripts associated with the manuscript of Waldock et al. (in prep) "*Systemic bio-inequity links poverty to biodiversity and induces a conservation paradox".*
 
 ## Session information
 
@@ -50,3 +50,5 @@ p_load(
 
 sessionInfo()
 ```
+
+All relevant files to reproduce the work can be found in "scripts". The data are available on publication at <https://doi.org/10.6084/m9.figshare.29457614>.
